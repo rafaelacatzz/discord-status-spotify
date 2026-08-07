@@ -62,5 +62,5 @@ DISCORD LYRICS STATUS
 
 ───────────────────────────────────────────────
 
-© 2026 rafaelacat (Shiin2ii). Todos os direitos reservados.
-https://github.com/rafaelacatzz/discord-status-spotify
+© 2026 rafaelacat. Todos os direitos reservados.
+https://github.com/rafaelacat/discord-status-spotify
