@@ -1,0 +1,25 @@
+# Env / secrets
+.env
+.tokens.json
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+build/*.ico
+build/icon.png
+build/certs/
+smtc-daemon/bin/
+smtc-daemon/obj/
+smtc-daemon/*.exe
+
+# Freebuff (dados locais da ferramenta de edição)
+.freebuff/
+
+# Bancos de dados / dados de execução
+*.db
+*.db-shm
+*.db-wal
+*.log

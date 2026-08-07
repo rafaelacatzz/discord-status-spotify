@@ -1,0 +1,66 @@
+END USER LICENSE AGREEMENT (EULA)
+DISCORD LYRICS STATUS
+
+Última atualização: Julho de 2026
+
+───────────────────────────────────────────────
+
+1. CONCESSÃO DE LICENÇA
+   Este software é fornecido gratuitamente ("freeware"). O autor concede
+   ao usuário uma licença não-exclusiva, intransferível e revogável para
+   instalar e executar o software Discord Lyrics Status em dispositivos
+   de sua propriedade.
+
+2. USO PERMITIDO
+   • Uso pessoal e não-comercial
+   • Modificação do código-fonte desde que mantidos os créditos originais
+   • Distribuição do binário original sem modificações
+
+3. RESTRIÇÕES
+   • Não é permitida a venda do software ou de suas funcionalidades
+   • Não é permitida a redistribuição modificada sem autorização prévia
+   • Não é permitida a utilização para atividades ilegais ou danosas
+   • Não é permitida a engenharia reversa além dos limites legais
+
+4. ISENÇÃO DE GARANTIA
+   ESTE SOFTWARE É FORNECIDO "COMO ESTÁ", SEM GARANTIAS DE QUALQUER
+   TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, MAS NÃO SE LIMITANDO A,
+   GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UM PROPÓSITO ESPECÍFICO
+   E NÃO VIOLAÇÃO.
+
+5. LIMITAÇÃO DE RESPONSABILIDADE
+   EM NENHUM CASO O AUTOR SERÁ RESPONSÁVEL POR QUAISQUER DANOS
+   DIRETOS, INDIRETOS, INCIDENTAIS, ESPECIAIS, EXEMPLARES OU
+   CONSEQUENCIAIS DECORRENTES DO USO OU IMPOSSIBILIDADE DE USO
+   DESTE SOFTWARE.
+
+6. COLETA DE DADOS
+   Este software não coleta, armazena ou transmite dados pessoais
+   do usuário sem consentimento explícito. A comunicação com a
+   API do Discord ocorre exclusivamente para a funcionalidade de
+   atualização de status conforme configurado pelo usuário.
+
+7. SERVIÇOS DE TERCEIROS
+   Este software interage com serviços de terceiros (Discord API,
+   Spotify API/SMTC, Last.fm, Genius, Deezer, LRCLIB). O usuário
+   é responsável por cumprir os Termos de Serviço de cada plataforma.
+
+8. PROPRIEDADE INTELECTUAL
+   Todos os direitos de propriedade intelectual do software
+   permanecem com o autor. Este EULA não concede quaisquer
+   direitos de propriedade intelectual além da licença de uso.
+
+9. RESCISÃO
+   Esta licença é自动amente revogada se o usuário descumprir
+   qualquer um de seus termos. Em caso de rescisão, o usuário
+   deve desinstalar e deletar todas as cópias do software.
+
+10. LEGISLAÇÃO APLICÁVEL
+    Este EULA é regido pelas leis da República Federativa do
+    Brasil. Qualquer disputa será resolvida no foro da comarca
+    do autor.
+
+───────────────────────────────────────────────
+
+© 2026 rafaelacat (Shiin2ii). Todos os direitos reservados.
+https://github.com/rafaelacatzz/discord-status-spotify
