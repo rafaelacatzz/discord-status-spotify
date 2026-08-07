@@ -73,7 +73,7 @@ export async function getLyrics(trackId, trackName, artistName, albumName = '', 
 
     const res = await fetch(`${BASE_URL}/get?${params}`, {
       headers: {
-        'User-Agent': 'DiscordLyricsStatus/1.0.0 (github.com/rafaelacat/discord-status-spotify)',
+        'User-Agent': 'DiscordLyricsStatus/1.0.0 (github.com/rafaelacatzz/discord-status-spotify)',
         'Accept': 'application/json',
       },
     });

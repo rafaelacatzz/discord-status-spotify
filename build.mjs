@@ -286,7 +286,7 @@ async function buildElectron() {
         },
         publish: {
           provider: 'github',
-          owner: 'rafaelacat',
+          owner: 'rafaelacatzz',
           repo: 'discord-status-spotify',
           releaseType: 'release',
         },
