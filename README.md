@@ -58,6 +58,28 @@ As preferências ficam em
 anteriores). A página **Configurações** mostra o caminho, abre a pasta e permite
 restaurar os padrões.
 
+## Segurança do token
+
+O token do Discord é o único dado sensível do app e fica **somente neste
+computador**:
+
+- **Criptografado em repouso.** O token é gravado em
+  `%APPDATA%\discord-lyrics-status\token.bin` com o **Windows DPAPI**, que só
+  permite descriptografar para o mesmo usuário do Windows na mesma máquina. O
+  `config.json` nunca contém o token; configurações antigas com o token em texto
+  puro são migradas e limpas automaticamente.
+- **Enviado só ao Discord.** O token só vai no cabeçalho `Authorization` de
+  requisições para `discord.com`, sempre em HTTPS. O cliente HTTP recusa HTTP
+  simples e não segue redirecionamentos, então o cabeçalho não pode vazar para
+  outro host. Letras (LRCLIB), capas (Deezer/iTunes) e a CDN do Discord são
+  consultadas sem nenhum cabeçalho de autenticação.
+- **Nunca é registrado.** Não há log, mensagem de erro ou telemetria com o token.
+- **Apagado ao sair.** "Sair" sobrescreve o arquivo antes de removê-lo e zera o
+  token da memória.
+
+O app também aceita `DISCORD_USER_TOKEN` no ambiente (ou um `.env` local) para
+desenvolvimento; esse valor é usado em memória e **nunca** é gravado em disco.
+
 ## Compilar do código-fonte
 
 Requisitos: Rust stable (`rustup`) e Visual Studio Build Tools com o workload

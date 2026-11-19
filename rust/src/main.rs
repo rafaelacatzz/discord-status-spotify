@@ -133,9 +133,11 @@ struct ViewState {
     last_error: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 struct Config {
-    #[serde(rename = "userToken")]
+    /// Legacy plaintext token, read from old configuration files and migrated to
+    /// the encrypted local store. It is never written again.
+    #[serde(rename = "userToken", skip_serializing)]
     user_token: Option<String>,
     #[serde(rename = "syncLeadMs")]
     sync_lead_ms: Option<u16>,
@@ -384,8 +386,9 @@ struct NativeApp {
 impl NativeApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         setup_visuals(&cc.egui_ctx);
-        let config = load_config();
-        let token = configured_token().or_else(|| config.user_token.clone());
+        let mut config = load_config();
+        migrate_legacy_token(&mut config);
+        let token = configured_token().or_else(load_local_token);
         let settings = Settings::from_config(&config);
         let account = match (
             token.as_ref(),
@@ -465,7 +468,8 @@ impl NativeApp {
         }
         match self.command_tx.send(Command::SaveToken(candidate)) {
             Ok(()) => {
-                self.token_input.clear();
+                // Do not keep the token in the input buffer after handing it over.
+                wipe_secret(&mut self.token_input);
                 self.ui_error = None;
             }
             Err(error) => {
@@ -724,7 +728,7 @@ impl NativeApp {
                                 ui.add_space(4.0);
                                 ui.label(
                                     egui::RichText::new(
-                                        "Cole o token do Discord. Ele é validado antes de ser salvo e fica apenas neste computador.",
+                                        "Cole o token do Discord. Ele é validado antes de ser salvo, criptografado com o Windows (DPAPI) e fica apenas neste computador.",
                                     )
                                     .size(10.5)
                                     .color(MUTED),
@@ -1302,7 +1306,18 @@ impl NativeApp {
                             .size(9.0)
                             .color(MUTED),
                     );
+                    ui.add_space(6.0);
                 }
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(
+                            "Token criptografado com Windows DPAPI em token.bin: só a sua conta do Windows consegue ler, e ele nunca vai para outros serviços.",
+                        )
+                        .size(8.5)
+                        .color(MUTED),
+                    )
+                    .wrap(),
+                );
             });
 
             columns[0].add_space(14.0);
@@ -1574,9 +1589,14 @@ fn spawn_worker(
             }
         };
 
+        // The token is only ever sent to discord.com over HTTPS: the client
+        // refuses plain HTTP and does not follow redirects, so the
+        // `Authorization` header cannot be forwarded to another host.
         let client = match Client::builder()
             .timeout(Duration::from_secs(8))
             .user_agent(concat!("SpotifySync/", env!("CARGO_PKG_VERSION"), " (native Rust)"))
+            .https_only(true)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
         {
             Ok(client) => client,
@@ -1640,7 +1660,7 @@ fn spawn_worker(
         loop {
             while let Ok(command) = command_rx.try_recv() {
                 match command {
-                    Command::SaveToken(candidate) => {
+                    Command::SaveToken(mut candidate) => {
                         set_token_status(&state, "Validando token com o Discord…".to_owned());
                         if let Ok(mut view) = state.lock() {
                             view.auth = AuthState::Validating;
@@ -1648,7 +1668,11 @@ fn spawn_worker(
                         match validate_token(&client, &candidate) {
                             Ok(account) => {
                                 token = Some(candidate.clone());
-                                config.user_token = Some(candidate);
+                                // The token never goes into the JSON config: it is
+                                // encrypted with Windows DPAPI in its own file.
+                                let token_saved = save_local_token(&candidate);
+                                wipe_secret(&mut candidate);
+                                config.user_token = None;
                                 config.account_id = Some(account.id.clone());
                                 config.account_name = Some(account.name.clone());
                                 config.account_avatar = account.avatar_url.clone();
@@ -1656,7 +1680,14 @@ fn spawn_worker(
                                     .avatar_url
                                     .as_deref()
                                     .and_then(|url| fetch_bytes(&client, url));
-                                if let Err(error) = save_config(&config) {
+                                if let Err(error) = token_saved {
+                                    set_error(
+                                        &state,
+                                        format!(
+                                            "Sessão iniciada, mas o token não pôde ser guardado com segurança: {error}"
+                                        ),
+                                    );
+                                } else if let Err(error) = save_config(&config) {
                                     set_error(
                                         &state,
                                         format!(
@@ -1682,13 +1713,15 @@ fn spawn_worker(
                         }
                     }
                     Command::SignOut => {
-                        if let Some(current) = token.take() {
+                        if let Some(mut current) = token.take() {
                             let _ = clear_discord_status(
                                 &client,
                                 &current,
                                 settings.presence.as_str(),
                             );
+                            wipe_secret(&mut current);
                         }
+                        clear_local_token();
                         config.user_token = None;
                         config.account_id = None;
                         config.account_name = None;
@@ -2011,6 +2044,143 @@ fn parse_dotenv_token(dotenv: &str) -> Option<String> {
         let token = value.trim().trim_matches('"').trim_matches('\'').trim();
         (!token.is_empty()).then(|| token.to_owned())
     })
+}
+
+const TOKEN_FILE: &str = "token.bin";
+/// `CRYPTPROTECT_UI_FORBIDDEN`: never show a Windows prompt for the encryption.
+const CRYPT_UI_FORBIDDEN: u32 = 0x1;
+
+fn token_path() -> Option<PathBuf> {
+    Some(config_dir()?.join(TOKEN_FILE))
+}
+
+/// Reads the token from the encrypted local store. The blob is encrypted with
+/// Windows DPAPI, so only this Windows user on this machine can decrypt it.
+fn load_local_token() -> Option<String> {
+    let blob = fs::read(token_path()?).ok()?;
+    let plain = unprotect_secret(&blob).ok()?;
+    let token = String::from_utf8(plain).ok()?.trim().to_owned();
+    (!token.is_empty()).then_some(token)
+}
+
+fn save_local_token(token: &str) -> Result<(), String> {
+    let path = token_path().ok_or_else(|| "Pasta de configuração indisponível".to_owned())?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Caminho de configuração inválido".to_owned())?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    let blob = protect_secret(token.trim().as_bytes())?;
+    // Write then rename so an interrupted save never truncates the token.
+    let temporary = path.with_extension("tmp");
+    fs::write(&temporary, &blob).map_err(|error| error.to_string())?;
+    fs::rename(&temporary, &path).map_err(|error| error.to_string())
+}
+
+fn clear_local_token() {
+    let Some(path) = token_path() else {
+        return;
+    };
+    if let Ok(bytes) = fs::read(&path) {
+        // Best effort: overwrite before deleting so the blob does not survive a
+        // simple undelete.
+        let zeros = vec![0u8; bytes.len()];
+        let _ = fs::write(&path, zeros);
+    }
+    let _ = fs::remove_file(&path);
+}
+
+/// Older versions stored the token in plain text inside `config.json`. Move it to
+/// the encrypted store and drop it from the JSON.
+fn migrate_legacy_token(config: &mut Config) {
+    let Some(legacy) = config.user_token.take() else {
+        return;
+    };
+    if save_local_token(&legacy).is_ok() {
+        let _ = save_config(config);
+    }
+}
+
+/// Overwrites a secret in memory before the buffer is released.
+fn wipe_secret(value: &mut String) {
+    // SAFETY: zeroed bytes are valid UTF-8 and the length is cleared right after.
+    unsafe {
+        value.as_mut_vec().fill(0);
+    }
+    value.clear();
+}
+
+#[cfg(windows)]
+fn protect_secret(plain: &[u8]) -> Result<Vec<u8>, String> {
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB};
+    let input = CRYPT_INTEGER_BLOB {
+        cbData: plain.len() as u32,
+        pbData: plain.as_ptr() as *mut u8,
+    };
+    let mut output = CRYPT_INTEGER_BLOB {
+        cbData: 0,
+        pbData: std::ptr::null_mut(),
+    };
+    unsafe {
+        CryptProtectData(
+            &input,
+            windows::core::PCWSTR::null(),
+            None,
+            None,
+            None,
+            CRYPT_UI_FORBIDDEN,
+            &mut output,
+        )
+        .map_err(|error| format!("DPAPI: {error}"))?;
+        let blob = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+        if !output.pbData.is_null() {
+            let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
+        }
+        Ok(blob)
+    }
+}
+
+#[cfg(windows)]
+fn unprotect_secret(blob: &[u8]) -> Result<Vec<u8>, String> {
+    use windows::Win32::Foundation::{LocalFree, HLOCAL};
+    use windows::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
+    let input = CRYPT_INTEGER_BLOB {
+        cbData: blob.len() as u32,
+        pbData: blob.as_ptr() as *mut u8,
+    };
+    let mut output = CRYPT_INTEGER_BLOB {
+        cbData: 0,
+        pbData: std::ptr::null_mut(),
+    };
+    unsafe {
+        CryptUnprotectData(
+            &input,
+            None,
+            None,
+            None,
+            None,
+            CRYPT_UI_FORBIDDEN,
+            &mut output,
+        )
+        .map_err(|error| format!("DPAPI: {error}"))?;
+        let plain = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
+        if !output.pbData.is_null() {
+            let _ = LocalFree(Some(HLOCAL(output.pbData as *mut core::ffi::c_void)));
+        }
+        Ok(plain)
+    }
+}
+
+#[cfg(not(windows))]
+fn protect_secret(_plain: &[u8]) -> Result<Vec<u8>, String> {
+    Err("O armazenamento seguro do token usa o Windows DPAPI e só existe no Windows 10/11."
+        .to_owned())
+}
+
+#[cfg(not(windows))]
+fn unprotect_secret(_blob: &[u8]) -> Result<Vec<u8>, String> {
+    Err("O armazenamento seguro do token usa o Windows DPAPI e só existe no Windows 10/11."
+        .to_owned())
 }
 
 fn save_config(config: &Config) -> Result<(), String> {
@@ -3952,6 +4122,41 @@ mod tests {
         assert_eq!(
             parse_dotenv_token(contents),
             Some("sample-token".to_owned())
+        );
+    }
+
+    #[test]
+    fn config_never_serializes_the_token() {
+        let config = Config {
+            user_token: Some("super-secret-token".to_owned()),
+            ..Config::default()
+        };
+        let json = serde_json::to_string(&config).expect("json");
+        assert!(!json.contains("super-secret-token"));
+        assert!(!json.contains("userToken"));
+    }
+
+    #[test]
+    fn wiping_a_token_clears_the_buffer() {
+        let mut token = "secret-token".to_owned();
+        let length = token.len();
+        let pointer = token.as_ptr();
+        wipe_secret(&mut token);
+        assert!(token.is_empty());
+        let bytes = unsafe { std::slice::from_raw_parts(pointer, length) };
+        assert!(bytes.iter().all(|byte| *byte == 0));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn dpapi_keeps_the_token_readable_only_by_windows() {
+        let secret = b"local-only-token-value";
+        let protected = protect_secret(secret).expect("proteger");
+        assert_ne!(protected.as_slice(), secret);
+        assert!(!String::from_utf8_lossy(&protected).contains("local-only-token-value"));
+        assert_eq!(
+            unprotect_secret(&protected).expect("abrir"),
+            secret.to_vec()
         );
     }
 }

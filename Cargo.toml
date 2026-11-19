@@ -1,6 +1,6 @@
 [package]
 name = "spotify-sync"
-version = "1.7.0"
+version = "1.7.1"
 edition = "2021"
 description = "Native Rust Spotify playback and lyrics status for Discord"
 license = "MIT"
@@ -24,6 +24,7 @@ dirs = "6"
 windows = { version = "0.61", features = [
     "Foundation",
     "Media_Control",
+    "Win32_Security_Cryptography",
     "Win32_System_WinRT",
 ] }
 
