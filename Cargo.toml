@@ -1,0 +1,37 @@
+[package]
+name = "spotify-sync"
+version = "1.7.0"
+edition = "2021"
+description = "Native Rust Spotify playback and lyrics status for Discord"
+license = "MIT"
+authors = ["rafaelacatzz"]
+repository = "https://github.com/rafaelacatzz/discord-status-spotify"
+readme = "README.md"
+keywords = ["spotify", "discord", "lyrics", "status", "windows"]
+categories = ["gui", "multimedia"]
+
+[[bin]]
+name = "SpotifySync"
+path = "rust/src/main.rs"
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow"] }
+image = { version = "0.25", default-features = false, features = ["ico", "jpeg", "png", "webp"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+windows = { version = "0.61", features = [
+    "Foundation",
+    "Media_Control",
+    "Win32_System_WinRT",
+] }
+
+[build-dependencies]
+winres = "0.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

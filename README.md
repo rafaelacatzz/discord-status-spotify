@@ -1,103 +1,118 @@
-# Discord Lyrics Status 🎵
+# SpotifySync
 
-**Letras do Spotify em tempo real exibidas como status personalizado do Discord.**
+Aplicativo desktop nativo em Rust para Windows que mostra no status do Discord a
+música que você está ouvindo no Spotify — com a letra sincronizada, linha por
+linha.
 
-O app monitora o que está tocando no Spotify (via SMTC do Windows) e atualiza o seu status do Discord com a faixa atual, letra sincronizada, capa do álbum e progresso.
+[![CI](https://github.com/rafaelacatzz/discord-status-spotify/actions/workflows/ci.yml/badge.svg)](https://github.com/rafaelacatzz/discord-status-spotify/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rafaelacatzz/discord-status-spotify?label=release)](https://github.com/rafaelacatzz/discord-status-spotify/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-![Plataforma](https://img.shields.io/badge/Windows-10%2B-0078D6) ![Node](https://img.shields.io/badge/Node.js-18%2B-339933) ![Licença](https://img.shields.io/badge/licença-MIT-green)
+## Baixar
 
----
+Baixe o executável mais recente na página de
+[**Releases**](https://github.com/rafaelacatzz/discord-status-spotify/releases/latest):
 
-## ✨ Funcionalidades
+- `SpotifySync-windows-x64.zip` — executável + licença + leia-me (recomendado)
+- `SpotifySync.exe` — apenas o executável, sem instalação
 
-- 🎵 **Faixa atual no status do Discord** — título, artista e álbum
-- 📝 **Letras sincronizadas em tempo real** — via [LRCLIB](https://lrclib.net), com fallback para o [Genius](https://genius.com) (não-sincronizadas)
-- 🖼️ **Capa do álbum** — buscada no Deezer / iTunes / Last.fm
-- ⏩ **Barra de progresso** no status, sincronizada com a reprodução
-- 🖥️ **Daemon SMTC em C#** — lê a sessão de mídia do Windows, **sem precisar de chaves da API do Spotify**
-- ⚙️ **Configuração pelo navegador** — painel local (`setup.html`) para validar o token
-- 📦 **Instalador Windows** (NSIS) com ícone na bandeja
+Requisitos: **Windows 10 ou 11 (64-bit)** e o **Spotify** instalado e aberto.
+Não é preciso instalar nada: extraia o `.exe` em qualquer pasta e execute.
 
-## 🛠️ Como funciona
+> O aplicativo não tem assinatura digital, então o Windows pode exibir o aviso
+> "O Windows protegeu o computador". Clique em **Mais informações → Executar
+> assim mesmo**. O código-fonte completo está neste repositório.
 
-```
-Spotify → Windows SMTC → SmtcDaemon.exe (C#) → backend Node.js → API do Discord
-                                              ↘ letras (LRCLIB/Genius) + capa (Deezer/iTunes/Last.fm)
-```
+## Funcionalidades
 
-O daemon C# consulta a sessão de mídia do Windows a cada segundo e o backend monta o status personalizado com letra sincronizada.
+- Leitura da reprodução direto do SMTC do Windows — sem API do Spotify, sem login
+  do Spotify.
+- Letras do LRCLIB: sincronizadas quando disponíveis e distribuídas pela duração
+  quando só há texto simples.
+- Status automático: mostra a linha da letra atual e cai para `Título — Artista`
+  quando a faixa não tem letra.
+- Sincronização estável: o relógio interpola a posição entre as leituras do SMTC
+  e ignora leituras atrasadas ou congeladas, então o status **não pisca nem volta
+  para a linha anterior**. Só um seek real move as letras para trás.
+- Emotes personalizados: um para a letra e outro para título/artista, com prévia,
+  presets e suporte a emotes de servidor (`nome:id` ou `<:nome:id>`).
+- Presença do Discord (online, ausente, não perturbe, invisível), adiantamento da
+  letra em ms, horário das linhas e modo econômico.
+- Capa do álbum via Deezer com fallback para iTunes, usada no tema do app.
+- Interface nativa em egui: início com prévia do status, página de letras com
+  destaque da linha atual, configurações com prévia ao vivo.
+- Sessão lembrada entre execuções (token validado antes de ser salvo).
 
-## ✅ Requisitos
+## Como usar
 
-- **Windows 10 ou 11** (necessário para o SMTC)
-- **Node.js 18+** (para rodar a partir do código)
-- **.NET SDK 8+** (apenas para compilar o daemon C#)
-- Um **token de usuário do Discord**
+1. Abra o Spotify e dê play em uma música.
+2. Abra o SpotifySync e cole seu token do Discord na tela de conexão:
+   1. Abra o Discord no navegador e entre na sua conta.
+   2. Pressione `F12` → aba **Rede (Network)**.
+   3. Procure qualquer requisição para `discord.com/api`.
+   4. Copie o valor do cabeçalho `authorization`.
+3. O app valida o token, mostra sua conta e passa a atualizar o status sozinho.
 
-> ⚠️ **Aviso:** o app usa o *user token* do Discord (extraído via DevTools), método não oficial. O uso pode violar os Termos de Serviço do Discord — use por sua conta e risco.
+As preferências ficam em
+`%APPDATA%\discord-lyrics-status\config.json` (a pasta é reutilizada de versões
+anteriores). A página **Configurações** mostra o caminho, abre a pasta e permite
+restaurar os padrões.
 
-## 🚀 Instalação (a partir do código)
+## Compilar do código-fonte
 
-```bash
-# 1. Instale as dependências
-npm install
+Requisitos: Rust stable (`rustup`) e Visual Studio Build Tools com o workload
+**Desktop development with C++** e um Windows SDK.
 
-# 2. Configure o token do Discord
-copy .env.example .env
-# edite o .env e defina DISCORD_USER_TOKEN=seu_token_aqui
-
-# 3. Compile o daemon C# (se o postinstall não fez)
-npm run build:daemon
-
-# 4. Rode
-npm start          # ou: npm run dev (watch mode)
-```
-
-**Obtendo o token do Discord:**
-
-1. Abra o Discord no navegador e pressione `F12` (DevTools)
-2. Vá em **Network**, faça qualquer requisição e copie o cabeçalho `Authorization`
-3. Cole no `.env` como `DISCORD_USER_TOKEN` — ou use o painel de setup local
-
-## 📦 Instalador Windows
-
-```bash
-npm run build:electron        # build completo + empacotamento Electron
-# ou
-build-installer.bat           # build assistido (gera ícones, daemon e instalador)
-```
-
-O instalador NSIS sai em `dist-electron/`. Para assinatura digital, veja [`SIGNING.md`](SIGNING.md).
-
-## 📁 Estrutura
-
-```
-src/                 Backend Node.js (status, letras, capa, servidor local)
-  index.js           Ponto de entrada
-  spotify.js         Leitura da faixa via daemon SMTC
-  status.js          Atualização do status no Discord
-  lyrics.js          Letras (LRCLIB + Genius)
-  album-art.js       Capa do álbum (Deezer/iTunes/Last.fm)
-  server.js          Dashboard local (WebSocket + API)
-  setup.js           Validação/salvamento do token
-electron/            Shell do app desktop (Electron)
-smtc-daemon/         Daemon C# (SMTC do Windows)
-public/              Frontend do dashboard (HTML/CSS/JS)
-build/               Recursos do instalador (ícone, EULA, NSIS)
-scripts/             Scripts auxiliares (ícones, assinatura, validação)
+```powershell
+cargo run
+cargo test
+cargo build --release
 ```
 
-## 🧰 Stack
+O executável fica em `target\release\SpotifySync.exe`. O script
+`build-portable.bat` compila e copia o binário para `dist\SpotifySync.exe`.
 
-| Camada | Tecnologia |
-| --- | --- |
-| Backend | Node.js (ESM) + esbuild |
-| Desktop | Electron + electron-builder (NSIS) |
-| Daemon | C# / .NET 8 (SMTC) |
-| Letras | LRCLIB, Genius |
-| Capa | Deezer, iTunes, Last.fm |
-| Realtime | WebSocket (`ws`), Express |
+O build usa CRT estático (`+crt-static`, veja `.cargo/config.toml`), então o
+`.exe` roda em qualquer Windows 10/11 x64 sem instalar o runtime do Visual C++.
 
-## 📄 Licença
+## Publicar uma versão
 
-MIT — veja os termos de uso no [`build/eula.txt`](build/eula.txt).
+O projeto usa GitHub Actions para gerar e publicar os binários:
+
+- `CI` roda `cargo test` e o build de release em cada push e pull request.
+- `Release` roda ao enviar uma tag `v*` e anexa o `.zip` e o `.exe` ao release.
+
+```powershell
+# 1. Atualize a versão em Cargo.toml
+# 2. Crie e envie a tag
+git add .
+git commit -m "SpotifySync 1.7.0"
+git tag v1.7.0
+git push origin main --tags
+```
+
+Acompanhe em **Actions**; quando terminar, o binário estará em **Releases**.
+
+## Estrutura
+
+```text
+rust/src/main.rs      Aplicativo nativo: interface, SMTC, LRCLIB, capas e Discord
+build.rs              Ícone e metadados do executável Windows
+build/icon.ico        Ícone incorporado ao executável
+build/icon.png        Identidade visual da interface
+Cargo.toml            Dependências e metadados do pacote
+.cargo/config.toml    Build estático do CRT no Windows
+build-portable.bat    Compila e copia o executável para dist\
+.github/workflows/    CI e publicação automática de releases
+```
+
+## Aviso
+
+A atualização do status usa um endpoint não oficial do Discord e autenticação por
+token de usuário. Isso pode violar os Termos de Serviço do Discord. O token é
+validado no Discord e salvo apenas neste computador; o app não o envia a
+webhooks ou serviços de terceiros. Use por sua conta e risco.
+
+## Licença
+
+[MIT](LICENSE).

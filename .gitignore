@@ -1,25 +1,29 @@
 # Env / secrets
 .env
+.env.local
+.env.*.local
 .tokens.json
-
-# Dependencies
-node_modules/
 
 # Build output
 dist/
-dist-electron/
-build/*.ico
-build/icon.png
-build/certs/
-smtc-daemon/bin/
-smtc-daemon/obj/
-smtc-daemon/*.exe
+target/
+package/
+coverage/
+playwright-report/
+*.zip
+*.pdb
+*.ilk
 
 # Freebuff (dados locais da ferramenta de edição)
 .freebuff/
+.cloud-attachments/
 
 # Bancos de dados / dados de execução
 *.db
 *.db-shm
 *.db-wal
 *.log
+*.log.*
+# Sistema operacional
+.DS_Store
+Thumbs.db
