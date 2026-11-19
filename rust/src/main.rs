@@ -517,6 +517,28 @@ impl NativeApp {
         }
     }
 
+    fn sync_artwork_texture(&mut self, ctx: &egui::Context, state: &ViewState) {
+        let artwork_hash = state.artwork.as_deref().map(stable_hash).unwrap_or(0);
+        if artwork_hash == self.texture_hash {
+            return;
+        }
+
+        if let Some(bytes) = &state.artwork {
+            if let Ok(image) = image::load_from_memory(bytes) {
+                let rgba = image.to_rgba8();
+                self.art_tint = average_color(&rgba);
+                let size = [rgba.width() as usize, rgba.height() as usize];
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+                self.texture =
+                    Some(ctx.load_texture("album-art", color_image, egui::TextureOptions::LINEAR));
+            }
+        } else {
+            self.texture = None;
+            self.art_tint = SURFACE;
+        }
+        self.texture_hash = artwork_hash;
+    }
+
     fn sync_emote_textures(&mut self, ctx: &egui::Context, state: &ViewState) {
         let lyric_hash = state.emote_lyric.as_deref().map(stable_hash).unwrap_or(0);
         if lyric_hash != self.emote_lyric_hash {
@@ -582,7 +604,7 @@ impl NativeApp {
                 if let Some(track) = &state.track {
                     ui.label(kicker("REPRODUZINDO"));
                     ui.add_space(8.0);
-                    mini_track_card(ui, track);
+                    mini_track_card(ui, track, self.texture.as_ref());
                 }
 
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
@@ -822,6 +844,24 @@ impl NativeApp {
 
     fn draw_home(&mut self, ui: &mut egui::Ui, state: &ViewState) {
         let total = ui.available_width().max(320.0);
+        if total < 760.0 {
+            self.draw_home_hero(ui, state);
+            ui.add_space(14.0);
+            profile_card(
+                ui,
+                state,
+                &self.settings,
+                self.avatar_texture.as_ref(),
+                self.emote_lyric_texture.as_ref(),
+                self.emote_track_texture.as_ref(),
+            );
+            ui.add_space(14.0);
+            connections_card(ui, state);
+            ui.add_space(14.0);
+            self.draw_lyrics_preview(ui, state);
+            return;
+        }
+
         let hero_width = (total * 0.62).clamp(300.0, (total - 250.0).max(300.0));
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(
@@ -862,28 +902,6 @@ impl NativeApp {
             .inner_margin(egui::Margin::same(22))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                let artwork_hash = state.artwork.as_deref().map(stable_hash).unwrap_or(0);
-                if artwork_hash != self.texture_hash {
-                    if let Some(bytes) = &state.artwork {
-                        if let Ok(image) = image::load_from_memory(bytes) {
-                            let rgba = image.to_rgba8();
-                            self.art_tint = average_color(&rgba);
-                            let size = [rgba.width() as usize, rgba.height() as usize];
-                            let color_image =
-                                egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-                            self.texture = Some(ui.ctx().load_texture(
-                                "album-art",
-                                color_image,
-                                egui::TextureOptions::LINEAR,
-                            ));
-                        }
-                    } else {
-                        self.texture = None;
-                        self.art_tint = SURFACE;
-                    }
-                    self.texture_hash = artwork_hash;
-                }
-
                 if let Some(track) = &state.track {
                     ui.horizontal_top(|ui| {
                         egui::Frame::new()
@@ -1518,6 +1536,7 @@ impl eframe::App for NativeApp {
             .unwrap_or_default();
 
         self.sync_avatar_texture(ctx, &state);
+        self.sync_artwork_texture(ctx, &state);
         self.sync_emote_textures(ctx, &state);
 
         if state.account.is_none() && state.auth != AuthState::SignedIn {
@@ -3302,7 +3321,7 @@ fn connections_card(ui: &mut egui::Ui, state: &ViewState) {
     });
 }
 
-fn mini_track_card(ui: &mut egui::Ui, track: &Track) {
+fn mini_track_card(ui: &mut egui::Ui, track: &Track, artwork: Option<&egui::TextureHandle>) {
     egui::Frame::new()
         .fill(SURFACE)
         .stroke(egui::Stroke::new(1.0_f32, BORDER_SOFT))
@@ -3311,11 +3330,19 @@ fn mini_track_card(ui: &mut egui::Ui, track: &Track) {
         .show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
-                egui::Frame::new()
-                    .fill(blend(SURFACE, ACCENT, 0.10))
-                    .corner_radius(egui::CornerRadius::same(RADIUS_SM))
-                    .inner_margin(egui::Margin::same(6))
-                    .show(ui, |ui| paint_note(ui, 18.0, ACCENT));
+                if let Some(texture) = artwork {
+                    ui.add(
+                        egui::Image::new(texture)
+                            .fit_to_exact_size(egui::vec2(34.0, 34.0))
+                            .corner_radius(egui::CornerRadius::same(RADIUS_SM)),
+                    );
+                } else {
+                    egui::Frame::new()
+                        .fill(blend(SURFACE, ACCENT, 0.10))
+                        .corner_radius(egui::CornerRadius::same(RADIUS_SM))
+                        .inner_margin(egui::Margin::same(6))
+                        .show(ui, |ui| paint_note(ui, 22.0, ACCENT));
+                }
                 ui.add_space(2.0);
                 ui.vertical(|ui| {
                     ui.add_space(1.0);
