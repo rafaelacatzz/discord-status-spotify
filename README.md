@@ -99,21 +99,25 @@ O build usa CRT estático (`+crt-static`, veja `.cargo/config.toml`), então o
 
 ## Publicar uma versão
 
-O projeto usa GitHub Actions para gerar e publicar os binários:
+Há dois caminhos, e o script local funciona mesmo sem GitHub Actions:
 
-- `CI` roda `cargo test` e o build de release em cada push e pull request.
-- `Release` roda ao enviar uma tag `v*` e anexa o `.zip` e o `.exe` ao release.
-
-```powershell
+```bash
 # 1. Atualize a versão em Cargo.toml
-# 2. Crie e envie a tag
-git add .
-git commit -m "SpotifySync 1.7.0"
-git tag v1.7.0
-git push origin main --tags
+# 2. Compile, empacote, crie a tag e publique o release com o .exe
+./scripts/release.sh
 ```
 
-Acompanhe em **Actions**; quando terminar, o binário estará em **Releases**.
+O script roda os testes, compila em release, gera `dist\SpotifySync.exe` e
+`dist\SpotifySync-windows-x64.zip`, cria o release da versão e anexa os dois
+arquivos. Use `./scripts/release.sh --no-upload` para apenas compilar e
+empacotar. A credencial vem de `GITHUB_TOKEN`, do `gh auth token` ou da
+credencial que o git já usa para push.
+
+Os workflows em `.github/workflows/` fazem o mesmo de forma automática: `CI` roda
+`cargo test` e o build de release em cada push/PR, e `Release` roda ao enviar uma
+tag `v*` e anexa o `.zip` e o `.exe` ao release. Se as execuções aparecerem como
+`startup_failure` com zero jobs, verifique **Settings → Billing** (minutos do
+Actions) ou a política de Actions da conta.
 
 ## Estrutura
 
