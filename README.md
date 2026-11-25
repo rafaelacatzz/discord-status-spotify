@@ -39,9 +39,10 @@ Pegue o executável mais recente na página de **[Releases](https://github.com/r
 Não precisa instalar nada: extraia o `.exe` em qualquer pasta e execute.
 
 > [!NOTE]
-> O aplicativo não tem assinatura digital, então o Windows pode mostrar
-> *"O Windows protegeu o computador"*. Clique em **Mais informações → Executar
-> assim mesmo**. Todo o código-fonte está neste repositório.
+> Releases sem assinatura digital podem mostrar *"O Windows protegeu o computador"*.
+> Clique em **Mais informações → Executar assim mesmo**. Todo o código-fonte está
+> neste repositório. Releases assinados com um certificado válido podem incluir o
+> provedor de assinatura nas propriedades do executável.
 
 ---
 
@@ -84,16 +85,47 @@ Não precisa instalar nada: extraia o `.exe` em qualquer pasta e execute.
 ## 🚀 Como usar
 
 1. **Abra o Spotify** e dê play em uma música.
-2. **Abra o SpotifySync** e cole seu token do Discord na tela de conexão:
+2. **Obtenha o seu próprio token do Discord pela aba Rede do navegador:**
 
-   | Passo | Ação |
-   | :---: | :--- |
-   | 1 | Abra o Discord no navegador e entre na sua conta. |
-   | 2 | Pressione `F12` e abra a aba **Rede (Network)**. |
-   | 3 | Procure qualquer requisição para `discord.com/api`. |
-   | 4 | Copie o valor do cabeçalho `authorization`. |
+   1. Abra o **Discord Web** (`https://discord.com/app`) no Chrome, Edge ou outro
+      navegador baseado em Chromium e entre na sua conta.
+   2. Pressione `F12` para abrir o DevTools. Se a janela já estiver aberta, vá até
+      a aba **Rede** (ou **Network**, em inglês). Pressione `Ctrl+R` para recarregar
+      o Discord e gerar novas requisições.
+   3. Marque **Preservar registro** (**Preserve log**) e filtre por **Fetch/XHR**.
+      Digite `api` no campo de busca da aba Rede.
+   4. Selecione uma requisição enviada para `discord.com/api/v9/` ou para outro
+      endpoint da API do Discord, por exemplo `users/@me`, `users/@me/settings`
+      ou `users/@me/guilds`.
+   5. No painel de detalhes, abra **Cabeçalhos** (**Headers**), procure em
+      **Cabeçalhos da requisição** (**Request Headers**) e localize `authorization`.
+   6. Clique com o botão direito no valor e use **Copiar valor** (**Copy value**),
+      ou selecione apenas o texto após `authorization:` e copie.
 
-3. **Pronto** — o app valida o token, mostra sua conta e passa a atualizar o status sozinho. 🎉
+   > [!IMPORTANT]
+   > O valor de `authorization` é um token de acesso pessoal. Nunca publique,
+   > envie em capturas de tela, cole em mensagens ou compartilhe este valor.
+   > Não use a opção **Copiar como cURL** se houver risco de a requisição completa
+   > ser compartilhada. Se o token vazou, troque a senha da conta e encerre todas
+   > as sessões pelo Discord.
+
+   <details>
+   <summary><b>Não apareceu nenhuma requisição ou cabeçalho?</b></summary>
+
+   - Aguarde o Discord terminar de carregar e envie uma mensagem ou troque de
+     servidor para criar uma nova requisição.
+   - Limpe o registro da aba Rede e recarregue com `Ctrl+R`.
+   - Verifique se o filtro está em **Fetch/XHR** e remova o texto do campo de busca.
+   - Em alguns navegadores, o valor aparece em **Cabeçalhos da requisição** somente
+     depois de selecionar a própria requisição.
+   - Abra o filtro **All** (**Tudo**) em vez de um filtro específico se não encontrar
+     o cabeçalho.
+   - Recarregar com o DevTools aberto evita perder as requisições iniciais.
+
+   </details>
+
+3. **Cole o token no campo do SpotifySync** e confirme. O app valida o token e
+   passa a atualizar o status sozinho. 🎉
 
 As preferências ficam em `%APPDATA%\discord-lyrics-status\config.json` (a pasta é
 reutilizada de versões anteriores). A página **Configurações** mostra o caminho,
@@ -132,6 +164,26 @@ cargo build --release
 - O `build-portable.bat` compila e copia para `dist\SpotifySync.exe`.
 - O build usa CRT estático (`+crt-static`, veja `.cargo/config.toml`), então o `.exe`
   roda em qualquer Windows 10/11 x64 sem instalar o runtime do Visual C++.
+
+### Assinatura digital no Windows
+
+Use um certificado de código emitido para a organização e mantenha a chave privada
+fora do repositório.
+
+No build local, defina estas variáveis antes de executar `build-portable.bat`:
+
+```powershell
+$env:SIGN_CERT_PFX = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\certs\SpotifySync.pfx"))
+$env:SIGN_CERT_PASSWORD = "senha-do-pfx"
+.\build-portable.bat
+```
+
+Para o workflow de Release do GitHub Actions, cadastre:
+
+- `WINDOWS_SIGN_PFX_BASE64`: PFX convertido para Base64.
+- `WINDOWS_SIGN_PFX_PASSWORD`: senha do PFX.
+
+O workflow assina o `.exe` com SHA-256 e um selo RFC 3161 antes de empacotá-lo.
 
 ---
 

@@ -143,6 +143,28 @@ fn record_history(history: &mut Vec<HistoryEntry>, track: &Track, played_at: u64
     history.truncate(MAX_HISTORY_ENTRIES);
 }
 
+fn favorite_artist(history: &[HistoryEntry]) -> Option<String> {
+    let mut artists: HashMap<String, (usize, String)> = HashMap::new();
+    for entry in history {
+        let name = entry.artist.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let slot = artists
+            .entry(name.to_lowercase())
+            .or_insert((0, name.to_owned()));
+        slot.0 += 1;
+        if name < slot.1.as_str() {
+            slot.1 = name.to_owned();
+        }
+    }
+
+    artists
+        .values()
+        .max_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.to_lowercase().cmp(&a.1.to_lowercase())))
+        .map(|(_, name)| name.clone())
+}
+
 /// Older versions of the app stored one row per playback. This collapses those
 /// files to a single row per track, keeping the most recent play and merging the
 /// covers that were already downloaded.
@@ -2361,21 +2383,8 @@ impl NativeApp {
             .filter(|entry| entry.played_at >= day_start)
             .count();
         let total_ms: u64 = entries.iter().map(|entry| entry.duration_ms).sum();
-        let mut artists: HashMap<String, (usize, String)> = HashMap::new();
-        for entry in entries {
-            let key = entry.artist.trim().to_lowercase();
-            if key.is_empty() {
-                continue;
-            }
-            let slot = artists
-                .entry(key)
-                .or_insert((0, entry.artist.trim().to_owned()));
-            slot.0 += 1;
-        }
-        let favorite = artists
-            .values()
-            .max_by_key(|(count, _)| *count)
-            .map(|(_, name)| truncate(name, 18))
+        let favorite = favorite_artist(entries)
+            .map(|name| truncate(&name, 18))
             .unwrap_or_else(|| "—".to_owned());
         let mut unique = HashSet::new();
         for entry in entries {
@@ -3869,6 +3878,9 @@ fn spawn_worker(
                     }
                     Command::UpdateSettings(next) => {
                         let presence_changed = settings.presence != next.presence;
+                        let status_appearance_changed = settings.track_emoji != next.track_emoji
+                            || settings.lyric_emoji != next.lyric_emoji
+                            || settings.sync_lead_ms != next.sync_lead_ms;
                         let discord_sync_changed =
                             settings.sync_discord_status != next.sync_discord_status;
                         let league_sync_disabled =
@@ -3878,8 +3890,9 @@ fn spawn_worker(
                         settings = next;
                         auto_update.store(settings.auto_update, Ordering::Relaxed);
                         settings.apply(&mut config);
-                        if presence_changed {
+                        if presence_changed || status_appearance_changed {
                             last_status_text.clear();
+                            last_league_status_text.clear();
                         }
                         if discord_sync_changed {
                             if settings.sync_discord_status {
@@ -4284,6 +4297,7 @@ fn spawn_worker(
                             view.lyric_index = None;
                             view.auto_bpm = None;
                             view.auto_lead_ms = None;
+                            view.artwork = None;
                             view.lyrics_status = "Aguardando música".to_owned();
                         }
                     }
@@ -4657,6 +4671,7 @@ fn write_pending_update(bytes: &[u8]) -> Result<(), String> {
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let temporary = path.with_extension("download");
     fs::write(&temporary, bytes).map_err(|error| error.to_string())?;
+    let _ = fs::remove_file(&path);
     fs::rename(&temporary, &path).map_err(|error| error.to_string())
 }
 
@@ -4783,6 +4798,7 @@ fn save_local_token(token: &str) -> Result<(), String> {
     // Write then rename so an interrupted save never truncates the token.
     let temporary = path.with_extension("tmp");
     fs::write(&temporary, &blob).map_err(|error| error.to_string())?;
+    let _ = fs::remove_file(&path);
     fs::rename(&temporary, &path).map_err(|error| error.to_string())
 }
 
@@ -4904,7 +4920,10 @@ fn save_config(config: &Config) -> Result<(), String> {
         .ok_or_else(|| "Caminho de configuração inválido".to_owned())?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let json = serde_json::to_string_pretty(config).map_err(|error| error.to_string())?;
-    fs::write(path, json).map_err(|error| error.to_string())
+    let temporary = path.with_extension("tmp");
+    fs::write(&temporary, json).map_err(|error| error.to_string())?;
+    let _ = fs::remove_file(&path);
+    fs::rename(&temporary, &path).map_err(|error| error.to_string())
 }
 
 fn config_dir() -> Option<PathBuf> {
@@ -5187,6 +5206,7 @@ fn spawn_league_status_worker(
                 Ok(()) => {
                     published = Some(text);
                     next_attempt = Instant::now() + Duration::from_secs(3);
+                    clear_error(&state);
                 }
                 Err(error) => {
                     set_error(&state, format!("Falha ao atualizar status do League: {error}"));
@@ -5804,6 +5824,12 @@ fn set_error(state: &Arc<Mutex<ViewState>>, error: String) {
     }
 }
 
+fn clear_error(state: &Arc<Mutex<ViewState>>) {
+    if let Ok(mut view) = state.lock() {
+        view.last_error = None;
+    }
+}
+
 fn set_token_status(state: &Arc<Mutex<ViewState>>, status: String) {
     if let Ok(mut view) = state.lock() {
         view.token_status = status;
@@ -5813,6 +5839,9 @@ fn set_token_status(state: &Arc<Mutex<ViewState>>, status: String) {
 fn set_discord_status(state: &Arc<Mutex<ViewState>>, status: String) {
     if let Ok(mut view) = state.lock() {
         view.discord_status = status;
+        if view.discord_status == "connected" {
+            view.last_error = None;
+        }
     }
 }
 
@@ -8338,6 +8367,21 @@ mod tests {
         assert_eq!(restored.len(), 1);
         assert_eq!(restored[0].played_at, 30);
         assert_eq!(restored[0].cover.as_deref(), Some("cover.jpg"));
+    }
+
+    #[test]
+    fn favorite_artist_ties_stay_stable_when_history_changes() {
+        let history = ["Teto", "Able Heart", "Other Artist"]
+            .into_iter()
+            .map(|artist| HistoryEntry {
+                artist: artist.to_owned(),
+                ..HistoryEntry::default()
+            })
+            .collect::<Vec<_>>();
+        let reordered = history.iter().rev().cloned().collect::<Vec<_>>();
+
+        assert_eq!(favorite_artist(&history).as_deref(), Some("Able Heart"));
+        assert_eq!(favorite_artist(&reordered).as_deref(), Some("Able Heart"));
     }
 
     #[test]

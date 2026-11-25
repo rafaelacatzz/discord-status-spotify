@@ -27,6 +27,18 @@ jobs:
       - name: Build release binary
         run: cargo build --release --locked
 
+      - name: Sign Windows executable
+        if: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 `
+            -Executable target/release/SpotifySync.exe `
+            -PfxBase64 "$env:WINDOWS_SIGN_PFX_BASE64" `
+            -PfxPassword "$env:WINDOWS_SIGN_PFX_PASSWORD"
+
       - name: Package release files
         shell: pwsh
         run: |

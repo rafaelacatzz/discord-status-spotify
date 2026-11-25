@@ -22,4 +22,12 @@ if not exist dist mkdir dist
 copy /y target\release\SpotifySync.exe dist\SpotifySync.exe >nul
 if errorlevel 1 exit /b %errorlevel%
 
+if defined SIGN_CERT_PFX (
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sign-windows.ps1 ^
+        -Executable dist\SpotifySync.exe ^
+        -PfxBase64 "%SIGN_CERT_PFX%" ^
+        -PfxPassword "%SIGN_CERT_PASSWORD%"
+    if errorlevel 1 exit /b %errorlevel%
+)
+
 echo Build concluido: dist\SpotifySync.exe
