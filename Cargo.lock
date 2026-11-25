@@ -2297,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "spotify-sync"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "dirs",
  "eframe",

@@ -1,6 +1,6 @@
 [package]
 name = "spotify-sync"
-version = "1.8.0"
+version = "1.8.1"
 edition = "2021"
 description = "Native Rust Spotify playback and lyrics status for Discord"
 license = "MIT"

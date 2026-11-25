@@ -28,7 +28,7 @@ jobs:
         run: cargo build --release --locked
 
       - name: Sign Windows executable
-        if: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 != '' }}
+        if: ${{ env.WINDOWS_SIGN_PFX_BASE64 != '' }}
         shell: pwsh
         env:
           WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
