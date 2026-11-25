@@ -34,13 +34,22 @@ Não é preciso instalar nada: extraia o `.exe` em qualquer pasta e execute.
 - Sincronização estável: o relógio interpola a posição entre as leituras do SMTC
   e ignora leituras atrasadas ou congeladas, então o status **não pisca nem volta
   para a linha anterior**. Só um seek real move as letras para trás.
+- Adiantamento inteligente: estima o BPM pelas marcações das letras sincronizadas,
+  ajusta a antecipação em frações de batida e limita o avanço para não pular linhas
+  próximas. Letras sem timestamps não são usadas para estimar o BPM.
 - Emotes personalizados: um para a letra e outro para título/artista, com prévia,
   presets e suporte a emotes de servidor (`nome:id` ou `<:nome:id>`).
 - Presença do Discord (online, ausente, não perturbe, invisível), adiantamento da
   letra em ms, horário das linhas e modo econômico.
-- Capa do álbum via Deezer com fallback para iTunes, usada no tema do app.
+- Capa do álbum via Deezer com fallback para iTunes; a paleta da interface muda
+  automaticamente com a música, mantendo um tema padrão quando a capa é neutra.
 - Interface nativa em egui: início com prévia do status, página de letras com
-  destaque da linha atual, configurações com prévia ao vivo.
+  destaque da linha atual, configurações com prévia ao vivo e histórico local das
+  50 faixas tocadas mais recentemente.
+- Atualização automática: ao abrir e a cada 6 horas o app consulta o release mais
+  recente, baixa o novo `SpotifySync.exe`, substitui o executável e reabre já na
+  versão nova. Se o repositório for privado, aponte a chave `updateFeed` para um
+  link público (veja **Publicar uma versão**).
 - Sessão lembrada entre execuções (token validado antes de ser salvo).
 
 ## Como usar
@@ -115,7 +124,31 @@ credencial que o git já usa para push.
 
 Os workflows em `.github/workflows/` fazem o mesmo de forma automática: `CI` roda
 `cargo test` e o build de release em cada push/PR, e `Release` roda ao enviar uma
-tag `v*` e anexa o `.zip` e o `.exe` ao release. Se as execuções aparecerem como
+tag `v*` e anexa o `.zip` e o `.exe` ao release. O app instalado lê o release
+mais recente e se atualiza sozinho: basta a nova tag ter um `SpotifySync.exe`.
+
+O repositório precisa ser **público**: a checagem não manda token e um repositório
+privado responde `404` para o app. Se ele for privado, hospede o `.exe` e um
+manifesto em qualquer URL pública e aponte o app para ela em
+`%APPDATA%\discord-lyrics-status\config.json`:
+
+```json
+{ "updateFeed": "https://exemplo.com/spotifysync.json" }
+```
+
+```json
+{ "version": "1.8.0", "url": "https://exemplo.com/SpotifySync.exe" }
+```
+
+`updateFeed` também aceita a URL da API de um release do GitHub. A versão vem
+de `tag_name` ou `version` e só é baixada quando for maior que a instalada. O
+mesmo valor pode ser passado pela variável `SPOTIFYSYNC_UPDATE_FEED`.
+
+A substituição é feita por `update\apply-update.ps1` em
+`%APPDATA%\discord-lyrics-status`: ele espera o app fechar, tenta trocar o `.exe`
+por até 10 segundos e reabre o programa. O resultado fica em `update\apply.log`,
+e uma tentativa por versão evita que o app entre em loop de reinício.
+Se as execuções aparecerem como
 `startup_failure` com zero jobs, verifique **Settings → Billing** (minutos do
 Actions) ou a política de Actions da conta.
 
