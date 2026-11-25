@@ -16,7 +16,7 @@ VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 [ -n "$VERSION" ] || { echo "Não foi possível ler a versão do Cargo.toml." >&2; exit 1; }
 TAG="v$VERSION"
 REPO=$(git config --get remote.origin.url |
-    sed -E 's#.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
+    sed -E 's#.*github\.com[:/]##; s#\.git$##; s#/$##')
 [ -n "$REPO" ] || { echo "Remoto do GitHub não encontrado." >&2; exit 1; }
 echo "SpotifySync $VERSION  ->  $REPO ($TAG)"
 
